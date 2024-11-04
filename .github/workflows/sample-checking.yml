@@ -1,31 +1,55 @@
-name: Test Lock Repo Logic
+name: Shared GitHub Enterprise Cloud GEI Migration
 
 on:
-  workflow_dispatch:
-    inputs:
-      migration_type:
-        description: 'Select Migration Type'
+  workflow_call:
+    secrets:
+      TARGET_ADMIN_TOKEN:
         required: true
-        default: 'Production'
-        type: choice
-        options:
-          - Dry-run
-          - Production
-      lock_source_repo:
-        description: 'Lock Source Repository'
+      SOURCE_ADMIN_TOKEN:
         required: true
-        default: 'No'
-        type: choice
-        options:
-          - Yes
-          - No
+      AZURE_STORAGE_CONNECTION_STRING:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
-  test-lock:
-    name: Test Lock Repo Logic
+  prepare:
+    name: Prepare
     runs-on: ubuntu-latest
+    outputs:
+      repositories: ${{ steps.json.outputs.repositories }}
+      migration-type: ${{ steps.migration-type.outputs.result }}
+      parsed-issue: ${{ steps.parse-issue-body.outputs.jsonString }}
+
+    if: github.event_name == 'issue_comment' &&
+      (contains(github.event.comment.body, '/run-dry-run-migration') ||
+      contains(github.event.comment.body, '/run-production-migration'))
 
     steps:
+      - name: Check out scripts
+        uses: actions/checkout@v3
+
+      - name: Parse issue body
+        id: parse-issue-body
+        uses: stefanbuck/github-issue-parser@v3
+
+      - run: echo $JSON_STRING
+        env:
+          JSON_STRING: ${{ steps.parse-issue-body.outputs.jsonString }}
+
+      - name: Set migration type
+        uses: actions/github-script@v6
+        id: migration-type
+        with:
+          result-encoding: string
+          script: |
+            return context.payload.comment.body.match('dry-run') ? 'Dry-run' : 'Production'
       - name: Set migration type and lock selection
         id: set-variables
         run: |
