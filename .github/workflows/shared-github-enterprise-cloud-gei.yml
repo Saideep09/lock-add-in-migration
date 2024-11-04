@@ -26,7 +26,6 @@ jobs:
       repositories: ${{ steps.json.outputs.repositories }}
       migration-type: ${{ steps.migration-type.outputs.result }}
       parsed-issue: ${{ steps.parse-issue-body.outputs.jsonString }}
-      lock-source-repo: ${{ steps.lock-variable.outputs.lock }}
 
     if: github.event_name == 'issue_comment' &&
       (contains(github.event.comment.body, '/run-dry-run-migration') ||
