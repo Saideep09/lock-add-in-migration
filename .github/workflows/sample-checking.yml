@@ -1,0 +1,51 @@
+name: Test Lock Repo Logic
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_type:
+        description: 'Select Migration Type'
+        required: true
+        default: 'Production'
+        type: choice
+        options:
+          - Dry-run
+          - Production
+      lock_source_repo:
+        description: 'Lock Source Repository'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - Yes
+          - No
+
+jobs:
+  test-lock:
+    name: Test Lock Repo Logic
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set migration type and lock selection
+        id: set-variables
+        run: |
+          echo "migration_type=${{ github.event.inputs.migration_type }}" >> $GITHUB_ENV
+          echo "lock_source_repo=${{ github.event.inputs.lock_source_repo }}" >> $GITHUB_ENV
+
+      - name: Create lock flag based on inputs
+        uses: actions/github-script@v6
+        id: lock-flag
+        with:
+          result-encoding: string
+          script: |
+            const migrationType = process.env.migration_type;
+            const lockSelection = process.env.lock_source_repo;
+            return migrationType === 'Production' && lockSelection === 'Yes' ? '--lock-source-repo' : '';
+
+      - name: Check lock flag result
+        run: |
+          if [ "${{ steps.lock-flag.outputs.result }}" == "--lock-source-repo" ]; then
+            echo "Lock flag is set: ${{ steps.lock-flag.outputs.result }}"
+          else
+            echo "Lock flag is not set."
+          fi
