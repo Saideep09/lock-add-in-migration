@@ -1,0 +1,184 @@
+name: Migration of Pipelines from ADO-2-GHA 
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+
+jobs:
+  migrate-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+    # Step 2: Install GitHub CLI
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gh
+
+    # Step 3: Install Actions Importer Extension
+    - name: Install Actions Importer Extension
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install github/gh-actions-importer
+
+    # Step 4: Update Actions Importer Image
+    - name: Update Actions Importer Image
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh actions-importer update
+        
+    - name: Debug Issue Body
+      run: echo "${{ github.event.issue.body }}"
+
+    - name: Extract Issue Details
+      id: extract  
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const issueBody = context.payload.issue.body;
+    
+          // Parse each field based on '### Label' followed by the value
+          function extractValue(label) {
+            const regex = new RegExp(`### ${label}\\n([^#]+)`, 'i');
+            const match = issueBody.match(regex);
+            return match ? match[1].trim() : null;
+          }
+    
+          const orgName = extractValue('Repository Organization');
+          const repoName = extractValue('Repository name');
+          const azureOrg = extractValue('AZURE ORGANIZATION NAME');
+          const azureProject = extractValue('AZURE PROJECT NAME');
+          const pipelineId = extractValue('Azure Pipeline-id');
+          const runType = extractValue('Run-Type');
+    
+          // Log and export values for debugging and reuse
+          console.log(`Organization: ${orgName}`);
+          console.log(`Repository: ${repoName}`);
+          console.log(`Azure Org: ${azureOrg}`);
+          console.log(`Azure Project: ${azureProject}`);
+          console.log(`Pipeline ID: ${pipelineId}`);
+          console.log(`Run Type: ${runType}`);
+    
+          core.setOutput('orgName', orgName);
+          core.setOutput('repoName', repoName);
+          core.setOutput('azureOrg', azureOrg);
+          core.setOutput('azureProject', azureProject);
+          core.setOutput('pipelineId', pipelineId);
+          core.setOutput('runType', runType);
+
+    - name: Display Extracted Details
+      run: |
+        echo "Organization: ${{ steps.extract.outputs.orgName }}"
+        echo "Repository: ${{ steps.extract.outputs.repoName }}"
+        echo "Azure Org: ${{ steps.extract.outputs.azureOrg }}"
+        echo "Azure Project: ${{ steps.extract.outputs.azureProject }}"
+        echo "Pipeline ID: ${{ steps.extract.outputs.pipelineId }}"
+        echo "Run Type: ${{ steps.extract.outputs.runType }}"
+
+    # Step 5: Validate Azure DevOps PAT
+    - name: Validate Azure DevOps PAT
+      env:
+        AZURE_DEVOPS_TOKEN: "${{ secrets.AZURE_DEVOPS_TOKEN }}"
+        AZURE_DEVOPS_ORG: "${{ steps.extract.outputs.azureOrg }}"
+      run: |
+        echo "Validating Azure DevOps PAT..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" -u ":${AZURE_DEVOPS_TOKEN}" \
+          "https://dev.azure.com/${AZURE_DEVOPS_ORG}/_apis/projects?api-version=7.1-preview.1")
+        
+        if [[ "$response" -ne 200 ]]; then
+          echo "Error: Azure DevOps PAT is invalid or does not have the required permissions. Response code: $response"
+          exit 1
+        else
+          echo "Azure DevOps PAT is valid."
+        fi
+
+    # Step 5: Set Up Configuration Manually
+    - name: Set Up Configuration Manually
+      run: |
+        mkdir -p ~/.gh-actions-importer
+        echo "azure-devops:" > ~/.gh-actions-importer/config.yml
+        echo "  org: MGMResortsDigitalEngineering" >> ~/.gh-actions-importer/config.yml
+        echo "  token: "${{ secrets.AZURE_DEVOPS_TOKEN }}"" >> ~/.gh-actions-importer/config.yml
+
+    # Step 6: Validate Azure DevOps Credentials
+    - name: Validate Azure DevOps Credentials
+      run: |
+        curl -u :${{ secrets.AZURE_DEVOPS_TOKEN }} https://dev.azure.com/${{ steps.extract.outputs.azureOrg }} | echo "Azure DevOps credentials validated."
+
+    # Step 7: Dry Run Migration
+    - name: Dry Run Migration
+      env:
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        AZURE_DEVOPS_ORG: "${{ steps.extract.outputs.azureOrg }}"
+        AZURE_DEVOPS_PROJECT: "${{ steps.extract.outputs.azureProject }}"
+        AZURE_DEVOPS_TOKEN: "${{ secrets.AZURE_DEVOPS_TOKEN }}"
+      run: |
+        mkdir -p tmp/dry-run
+        gh actions-importer dry-run azure-devops pipeline \
+        --pipeline-id "${{ steps.extract.outputs.pipelineId }}" \
+        --azure-devops-organization "${{ steps.extract.outputs.azureOrg }}" \
+        --azure-devops-project "${{ steps.extract.outputs.azureProject }}" \
+        --azure-devops-access-token "${{ secrets.AZURE_DEVOPS_TOKEN }}" \
+        --github-access-token "${{ secrets.PAT_TOKEN }}" \
+        --output-dir tmp/dry-run 
+        cat tmp/dry-run/log/*
+
+    # Step 8: Upload Dry Run Results
+    - name: Upload Dry Run Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: dry-run-results
+        path: tmp/dry-run
+
+    # Step 9: Debug Dry-Run Output
+    - name: Debug Dry-Run Output
+      run: |
+        echo "Listing files in tmp/dry-run:"
+        find tmp/dry-run
+
+    # Step 10: Move Generated Workflows
+    - name: Move Generated Workflows
+      run: |
+        # List the files in the workflows directory
+        echo "Listing files in tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows:"
+        ls -l tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows/
+        
+        # Move the workflow file explicitly
+        if [ -f "tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows/mgmresorts.pd-payments-audit-trail.yml" ]; then
+          mv "tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows/mgmresorts.pd-payments-audit-trail.yml" .github/workflows/
+        else
+          echo "No workflow file found, skipping move step."
+        fi
+
+    # Step 13: Stage Workflow Files
+    - name: Stage Workflow Files
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add .github/workflows/*  # Add all workflow files
+        git status  # Ensure files are staged
+
+        # Step 14: Commit and Push Changes to Specific Repo and Branch
+    - name: Commit and Push Changes to Specific Repo and Branch
+      env:
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: |
+        git checkout -b SSDLC-pd-payments-audit-trail1
+        git add tmp/
+        git commit -m "Add migrated Azure DevOps pipeline workflows"
+        git push origin SSDLC-pd-payments-audit-trail1
+
+      

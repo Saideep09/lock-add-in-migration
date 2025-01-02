@@ -1,0 +1,130 @@
+name: Azure DevOps Migration Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline-id:
+        description: "Azure DevOps Pipeline ID to migrate"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  
+jobs:
+  migrate-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Step 2: Install GitHub CLI
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gh
+
+    # Step 3: Install Actions Importer Extension
+    - name: Install Actions Importer Extension
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install github/gh-actions-importer
+
+    # Step 4: Update Actions Importer Image
+    - name: Update Actions Importer Image
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh actions-importer update
+
+    - name: Validate Azure DevOps PAT
+      env:
+        AZURE_DEVOPS_TOKEN: "3nHiHFukAmzrvwWBMkD1OzDudZxqW0FKP3G2dvVqMfTnnSUZL1F7JQQJ99ALACAAAAAT72ceAAASAZDOMlOv"
+        AZURE_DEVOPS_ORG: "MGMResortsDigitalEngineering"
+      run: |
+        echo "Validating Azure DevOps PAT..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" -u ":${AZURE_DEVOPS_TOKEN}" \
+          "https://dev.azure.com/${AZURE_DEVOPS_ORG}/_apis/projects?api-version=7.1-preview.1")
+        
+        if [[ "$response" -ne 200 ]]; then
+          echo "Error: Azure DevOps PAT is invalid or does not have the required permissions. Response code: $response"
+          exit 1
+        else
+          echo "Azure DevOps PAT is valid."
+        fi
+
+    # Step 5: Set Up Configuration Manually
+    - name: Set Up Configuration Manually
+      run: |
+        mkdir -p ~/.gh-actions-importer
+        echo "azure-devops:" > ~/.gh-actions-importer/config.yml
+        echo "  org: MGMResortsDigitalEngineering" >> ~/.gh-actions-importer/config.yml
+        echo "  token: 3nHiHFukAmzrvwWBMkD1OzDudZxqW0FKP3G2dvVqMfTnnSUZL1F7JQQJ99ALACAAAAAT72ceAAASAZDOMlOv" >> ~/.gh-actions-importer/config.yml
+
+    # Step 6: Validate Azure DevOps Credentials
+    - name: Validate Azure DevOps Credentials
+      run: |
+        curl -u :3nHiHFukAmzrvwWBMkD1OzDudZxqW0FKP3G2dvVqMfTnnSUZL1F7JQQJ99ALACAAAAAT72ceAAASAZDOMlOv https://dev.azure.com/MGMResortsDigitalEngineering | echo "Azure DevOps credentials validated."
+
+    # Step 7: Dry Run Migration
+    - name: Dry Run Migration
+      env:
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        AZURE_DEVOPS_ORG: "MGMResortsDigitalEngineering"
+        AZURE_DEVOPS_PROJECT: "Payment Services"
+        AZURE_DEVOPS_TOKEN: "3nHiHFukAmzrvwWBMkD1OzDudZxqW0FKP3G2dvVqMfTnnSUZL1F7JQQJ99ALACAAAAAT72ceAAASAZDOMlOv"
+      run: |
+        mkdir -p tmp/dry-run
+        gh actions-importer dry-run azure-devops pipeline \
+          --pipeline-id "1636" \
+          --azure-devops-organization "MGMResortsDigitalEngineering" \
+          --azure-devops-project "Payment Services" \
+          --azure-devops-access-token "3nHiHFukAmzrvwWBMkD1OzDudZxqW0FKP3G2dvVqMfTnnSUZL1F7JQQJ99ALACAAAAAT72ceAAASAZDOMlOv" \
+          --github-access-token "${{ secrets.PAT_TOKEN }}" \
+          --output-dir tmp/dry-run \
+          --no-telemetry  # Disable telemetry to avoid related errors
+        cat tmp/dry-run/log/*  # Debugging log
+
+    # Step 9: Upload Dry Run Results
+    - name: Upload Dry Run Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: dry-run-results
+        path: tmp/dry-run
+
+    # Step 10: Upload Audit Results
+    - name: Upload Audit Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: audit-results
+        path: tmp/audit
+
+    - name: Debug Dry-Run Output
+      run: |
+        echo "Listing files in tmp/dry-run:"
+        find tmp/dry-run
+
+    - name: Commit and Push Changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # Use the PAT secret here
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add .github/workflows/*
+        git commit -m "Add migrated Azure DevOps pipeline workflows"
+        git push origin main
+
+
+    # Step 11: Commit and Push Migrated Workflows (if dry run is successful)
+    - name: Move Generated Workflows
+      run: |
+        mv "tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows/*" .github/workflows/
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add .github/workflows/
+        git commit -m "Add migrated Azure DevOps pipeline workflows"
+        git push origin main
+

@@ -1,0 +1,28 @@
+# Logfile created on 2025-01-01 01:52:38 +0000 by logger.rb/v1.6.0
+I, [2025-01-01T01:52:38.700427 #1]  INFO -- : Using GitHub Features: Defaults
+I, [2025-01-01T01:52:38.701685 #1]  INFO -- request: GET https://dev.azure.com/MGMResortsDigitalEngineering/Payment%20Services/_apis/build/definitions/1636?api-version=5.0
+I, [2025-01-01T01:52:38.772288 #1]  INFO -- response: Status 200
+I, [2025-01-01T01:52:38.804856 #1]  INFO -- request: GET https://api.github.com/repos/MGMResorts/pd-payments-audit-trail/contents/azure/azure-pipelines.yml?ref=refs%2Fheads%2Fdevelop
+I, [2025-01-01T01:52:38.956688 #1]  INFO -- response: Status 200
+I, [2025-01-01T01:52:38.961949 #1]  INFO -- request: GET https://dev.azure.com/MGMResortsDigitalEngineering/Payment%20Services/_apis/serviceendpoint/endpoints?api-version=5.0-preview
+I, [2025-01-01T01:52:39.194118 #1]  INFO -- response: Status 200
+I, [2025-01-01T01:52:39.200675 #1]  INFO -- request: GET https://dev.azure.com/MGMResortsDigitalEngineering/Payment%20Services/_apis/distributedtask/variablegroups?api-version=5.0-preview&queryOrder=idDescending
+I, [2025-01-01T01:52:39.337458 #1]  INFO -- response: Status 200
+I, [2025-01-01T01:52:39.349159 #1]  INFO -- request: GET https://dev.azure.com/MGMResortsDigitalEngineering/Payment%20Services/_apis/distributedtask/taskgroups?api-version=5.0-preview
+I, [2025-01-01T01:52:39.549805 #1]  INFO -- response: Status 200
+I, [2025-01-01T01:52:39.557954 #1]  INFO -- request: GET https://dev.azure.com/MGMResortsDigitalEngineering/_apis/distributedtask/tasks?api-version=5.0-preview
+I, [2025-01-01T01:52:40.079932 #1]  INFO -- response: Status 200
+D, [2025-01-01T01:52:40.163726 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::Steps]: Failed to locate transformer for 'JavaToolInstaller@0'
+W, [2025-01-01T01:52:40.163818 #1]  WARN -- : There was an error tranforming step, and an array is being surfaced: JavaToolInstaller@0
+D, [2025-01-01T01:52:40.163981 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::Steps]: Located transformer for 'script'
+W, [2025-01-01T01:52:40.164111 #1]  WARN -- : There was an error tranforming step, and an array is being surfaced: script
+D, [2025-01-01T01:52:40.164274 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::Steps]: Located transformer for 'CopyFiles@2'
+W, [2025-01-01T01:52:40.164778 #1]  WARN -- : There was an error tranforming step, and an array is being surfaced: CopyFiles@2
+D, [2025-01-01T01:52:40.164996 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::Steps]: Located transformer for 'ArchiveFiles@2'
+W, [2025-01-01T01:52:40.165179 #1]  WARN -- : There was an error tranforming step, and an array is being surfaced: ArchiveFiles@2
+D, [2025-01-01T01:52:40.165368 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::Steps]: Located transformer for 'PublishPipelineArtifact@1'
+W, [2025-01-01T01:52:40.165726 #1]  WARN -- : There was an error tranforming step, and an array is being surfaced: PublishPipelineArtifact@1
+D, [2025-01-01T01:52:40.166483 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::On]: Located transformer for 'continuousIntegration'
+D, [2025-01-01T01:52:40.166566 #1] DEBUG -- : [Transformers::AzureDevops::Pipeline::On]: Located transformer for 'pullRequest'
+I, [2025-01-01T01:52:40.228277 #1]  INFO -- : Output file(s):
+I, [2025-01-01T01:52:40.232709 #1]  INFO -- :   tmp/dry-run/pipelines/Payment_Services/Payment_Diversity_[CNP]/MGMResorts.pd-payments-audit-trail/.github/workflows/mgmresorts.pd-payments-audit-trail.yml
